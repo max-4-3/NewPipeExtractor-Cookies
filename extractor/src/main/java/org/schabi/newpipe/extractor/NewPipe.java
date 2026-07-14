@@ -26,6 +26,7 @@ import org.schabi.newpipe.extractor.localization.ContentCountry;
 import org.schabi.newpipe.extractor.localization.Localization;
 import org.schabi.newpipe.extractor.utils.ExtractorLogger;
 
+import java.io.File;
 import java.util.List;
 
 import javax.annotation.Nonnull;
@@ -43,6 +44,12 @@ public final class NewPipe {
     private NewPipe() {
     }
 
+    public static void init(final Downloader d, final File cookieFile) {
+        ExtractorLogger.d(TAG, "Default init called with cookieFile: " + cookieFile);
+        Localization l = Localization.DEFAULT;
+        init(d, l, l.getCountryCode().isEmpty() ? ContentCountry.DEFAULT : new ContentCountry(l.getCountryCode()), cookieFile);
+    }
+
     public static void init(final Downloader d) {
         ExtractorLogger.d(TAG, "Default init called");
         init(d, Localization.DEFAULT);
@@ -51,15 +58,32 @@ public final class NewPipe {
     public static void init(final Downloader d, final Localization l) {
         ExtractorLogger.d(TAG, "Default init called with localization={}");
         init(d, l, l.getCountryCode().isEmpty()
-                ? ContentCountry.DEFAULT : new ContentCountry(l.getCountryCode()));
+                ? ContentCountry.DEFAULT : new ContentCountry(l.getCountryCode()), null);
     }
 
-    public static void init(final Downloader d, final Localization l, final ContentCountry c) {
-        ExtractorLogger.d(TAG, "Initializing with downloader={}, localization={}, country={}",
-                          d, l, c);
+    public static void init(final Downloader d, final Localization l, final ContentCountry c, final File cookieFile) {
+        ExtractorLogger.d(TAG, "Initializing with downloader={}, localization={}, country={}, cookieFile={}",
+                          d, l, c, cookieFile);
         downloader = d;
         preferredLocalization = l;
         preferredContentCountry = c;
+
+        if (cookieFile != null) {
+            downloader.setCookieJar(new ExtractorJar(cookieFile));
+            downloader.setCookiesEnabled(true);
+        }
+    }
+
+    public static void setCookieFile(final File cookieFile) {
+        if (downloader != null) {
+            downloader.setCookieJar(new ExtractorJar(cookieFile));
+        }
+    }
+
+    public static void setCookieEnabled(boolean cookieEnabled) {
+        if (downloader != null) {
+            downloader.setCookiesEnabled(cookieEnabled);
+        }
     }
 
     public static Downloader getDownloader() {
