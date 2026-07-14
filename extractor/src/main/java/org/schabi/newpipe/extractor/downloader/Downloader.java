@@ -1,5 +1,7 @@
 package org.schabi.newpipe.extractor.downloader;
 
+import org.schabi.newpipe.extractor.Cookie;
+import org.schabi.newpipe.extractor.ExtractorJar;
 import org.schabi.newpipe.extractor.NewPipe;
 import org.schabi.newpipe.extractor.exceptions.ReCaptchaException;
 import org.schabi.newpipe.extractor.localization.Localization;
@@ -12,11 +14,60 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+
 /**
  * A base for downloader implementations that NewPipe will use
  * to download needed resources during extraction.
  */
 public abstract class Downloader {
+    private ExtractorJar cookieJar = null;
+    private boolean cookiesEnabled = true;
+
+    public void setCookieJar(ExtractorJar cookieJar) {
+        this.cookieJar = cookieJar;
+    }
+
+    public void setCookiesEnabled(boolean enabled) {
+        this.cookiesEnabled = enabled;
+    }
+
+    private void saveCookieIfEnabled(@Nonnull final String url, @Nullable Response response) {
+        if (response != null && cookiesEnabled && cookieJar != null) {
+            List<String> setCookies = response.responseHeaders() != null ? response.responseHeaders().get("Set-Cookie") : List.of();
+            if (setCookies != null) {
+                log("ExtractorJar", String.format("Saving %s cookies for url: %s", String.valueOf(setCookies.size()), url));
+                cookieJar.saveFromResponse(url, setCookies);
+            }
+        }
+    }
+
+    private void log(String tag, String msg) {
+        System.out.println(String.format("%s: %s", tag, msg));
+    }
+
+    private void addCookieIfEnabled(@Nonnull final String url, @Nullable final Map<String, List<String>> headers) {
+        log("ExtractorJar", String.format("headers != null: %s; cookiesEnabled = %s; cookieJar != null: %s", headers != null, cookiesEnabled, cookieJar != null));
+        if (headers != null && cookiesEnabled && cookieJar != null) {
+            List<Cookie> cookies = cookieJar.loadForRequest(url);
+            log("ExtractorJar", String.format("Received %s cookies for url: %s", String.valueOf(cookies != null ? cookies.size() : -1), url));
+
+            if (cookies != null && !cookies.isEmpty()) {
+                StringBuilder sb = new StringBuilder();
+
+                for (int i = 0; i < cookies.size(); i++) {
+                    Cookie cookie = cookies.get(i);
+
+                    if (i > 0) {
+                        sb.append("; ");
+                    }
+
+                    sb.append(cookie.toCookieHeader());
+                }
+
+                headers.put("Cookie", Collections.singletonList(sb.toString()));
+            }
+        }
+    }
 
     /**
      * Do a GET request to get the resource that the url is pointing to.<br>
@@ -74,11 +125,17 @@ public abstract class Downloader {
                         @Nullable final Map<String, List<String>> headers,
                         final Localization localization)
             throws IOException, ReCaptchaException {
-        return execute(Request.newBuilder()
+        Map<String, List<String>> headers_ = new HashMap<>(headers != null ? headers : new HashMap<>());
+        addCookieIfEnabled(url, headers_);
+
+        Response response = execute(Request.newBuilder()
                 .get(url)
-                .headers(headers)
+                .headers(headers_)
                 .localization(localization)
                 .build());
+
+        saveCookieIfEnabled(url, response);
+        return response;
     }
 
     /**
@@ -101,10 +158,15 @@ public abstract class Downloader {
      */
     public Response head(final String url, @Nullable final Map<String, List<String>> headers)
             throws IOException, ReCaptchaException {
-        return execute(Request.newBuilder()
+        Map<String, List<String>> headers_ = new HashMap<>(headers != null ? headers : new HashMap<>());
+        addCookieIfEnabled(url, headers_);
+        Response response = execute(Request.newBuilder()
                 .head(url)
-                .headers(headers)
+                .headers(headers_)
                 .build());
+        saveCookieIfEnabled(url, response);
+
+        return response;
     }
 
     /**
@@ -140,11 +202,16 @@ public abstract class Downloader {
                          @Nullable final byte[] dataToSend,
                          final Localization localization)
             throws IOException, ReCaptchaException {
-        return execute(Request.newBuilder()
+
+        Map<String, List<String>> headers_ = new HashMap<>(headers != null ? headers : new HashMap<>());
+        addCookieIfEnabled(url, headers_);
+        Response response = execute(Request.newBuilder()
                 .post(url, dataToSend)
-                .headers(headers)
+                .headers(headers_)
                 .localization(localization)
                 .build());
+        saveCookieIfEnabled(url, response);
+        return response;
     }
 
     /**
