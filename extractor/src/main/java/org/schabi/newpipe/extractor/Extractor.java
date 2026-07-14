@@ -13,6 +13,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import java.io.IOException;
+import java.io.File;
 import java.util.Objects;
 
 public abstract class Extractor {
@@ -36,9 +37,18 @@ public abstract class Extractor {
     private final Downloader downloader;
 
     protected Extractor(final StreamingService service, final LinkHandler linkHandler) {
+        this(service, linkHandler, null);
+    }
+
+    protected Extractor(final StreamingService service, final LinkHandler linkHandler, final File cookieFile) {
         this.service = Objects.requireNonNull(service, "service is null");
         this.linkHandler = Objects.requireNonNull(linkHandler, "LinkHandler is null");
         this.downloader = Objects.requireNonNull(NewPipe.getDownloader(), "downloader is null");
+
+        if (cookieFile != null) {
+            this.downloader.setCookieJar(new ExtractorJar(cookieFile));
+            this.downloader.setCookiesEnabled(true);
+        }
     }
 
     /**
