@@ -24,6 +24,10 @@ public class ExtractorJar {
         this.cookies.addAll(this.load());
     }
 
+    public int size() {
+        return cookies.size();
+    }
+
     /**
      * Dumps the Cookies into the sb (separate lines) into Netscape format
      * @param sb StringBuilder to dump into
@@ -56,7 +60,11 @@ public class ExtractorJar {
                 n -> n.getName().equals(c.getName()) && n.getDomain().equals(c.getDomain()))
             );
             this.cookies.addAll(cookies);
-            save();
+            // final long t0 = System.nanoTime();
+            save(); /*this operation took 0.01s with 2k+ cookies on a old device*/
+            // log("ExtractorJar",
+            //    String.format("Took %.2fs to save",
+            //        (System.nanoTime() - t0) / 1_000_000_000.0));
         } catch (MalformedURLException e) {
             log("ExtractorJar", "Invalid `url` passed");
         }
