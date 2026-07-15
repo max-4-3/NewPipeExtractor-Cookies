@@ -23,12 +23,18 @@ public abstract class Downloader {
     private ExtractorJar cookieJar = null;
     private boolean cookiesEnabled = true;
 
-    public void setCookieJar(ExtractorJar cookieJar) {
+    public void setCookieJar(final ExtractorJar cookieJar) {
         this.cookieJar = cookieJar;
     }
 
-    public void setCookiesEnabled(boolean enabled) {
+    public void setCookiesEnabled(final boolean enabled) {
         this.cookiesEnabled = enabled;
+    }
+
+    public void dumpCookies(final StringBuilder sb) {
+        if (sb != null && cookieJar != null) {
+            cookieJar.dump(sb);
+        }
     }
 
     private void saveCookieIfEnabled(@Nonnull final String url, @Nullable Response response) {

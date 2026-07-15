@@ -1,7 +1,5 @@
 package org.schabi.newpipe.extractor;
 
-import org.schabi.newpipe.extractor.utils.ExtractorLogger;
-
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -26,61 +24,79 @@ public class ExtractorJar {
         this.cookies.addAll(this.load());
     }
 
-    private void saveFromResponse(@Nonnull URL ignored, @Nonnull List<Cookie> cookies) {
-        this.cookies.removeIf(c -> cookies.stream().anyMatch(
-            n -> n.getName().equals(c.getName()) && n.getDomain().equals(c.getDomain()))
-        );
-        this.cookies.addAll(cookies);
-        save();
+    /**
+     * Dumps the Cookies into the sb (separate lines) into Netscape format
+     * @param sb StringBuilder to dump into
+     */
+    public void dump(final StringBuilder sb) {
+        for (Cookie c : cookies) {
+            sb.append(c.toNetscape());
+            sb.append('\n');
+        }
     }
 
-    public void saveFromResponse(@Nonnull String url, @Nonnull List<String> cookies) {
+    /**
+     * Save cookies from a response and updates the `cookieFile` provided in constructor
+     * @param url the url of the resource fetched (full url)
+     * @param headers the `Set-Cookie` headers
+     */
+    public void saveFromResponse(@Nonnull String url, @Nonnull List<String> headers) {
         try {
             URL httpUrl = new URL(url);
-            List<Cookie> cookieList = new ArrayList<>();
+            List<Cookie> cookies = new ArrayList<>();
 
-            for (String cookie: cookies) {
+            for (String cookie: headers) {
                 Cookie cook = Cookie.parseSetCookie(cookie, httpUrl);
                 if (cook != null) {
-                    cookieList.add(cook);
+                    cookies.add(cook);
                 }
             }
 
-            saveFromResponse(httpUrl, cookieList);
+            this.cookies.removeIf(c -> cookies.stream().anyMatch(
+                n -> n.getName().equals(c.getName()) && n.getDomain().equals(c.getDomain()))
+            );
+            this.cookies.addAll(cookies);
+            save();
         } catch (MalformedURLException e) {
-            throw new RuntimeException(e);
+            log("ExtractorJar", "Invalid `url` passed");
         }
     }
 
+    /**
+     * Get cookies for a specific url (correctly matched)
+     * @param url the url for which cookies to get
+     * @return Cookies
+     */
     @Nullable
     public List<Cookie> loadForRequest(@Nonnull String url) {
-        try {
-            URL httpUrl = new URL(url);
-            ExtractorLogger.d("ExtractorJar", httpUrl.toString());
+        final List<Cookie> cookies = new ArrayList<>();
 
-            return cookies.stream().filter(c -> c.matches(httpUrl)).toList();
+        try {
+            final URL httpUrl = new URL(url);
+            cookies.addAll(this.cookies.stream().filter(c -> c.matches(httpUrl)).toList());
         } catch (MalformedURLException e) {
-            throw new RuntimeException(e);
+            log("ExtractorJar", String.format("Unable to find cookies for '%s': %s", url, e));
         }
+
+        return cookies;
+    }
+
+    private void log(String tag, String msg) {
+        System.out.printf("%s: %s%n", tag, msg);
     }
 
     private void save() {
         try (PrintWriter out = new PrintWriter(new BufferedWriter(new FileWriter(cookieFile)))) {
-            out.println("# Netscape HTTP Cookie File");
-            out.println("# This file was generated automatically.");
-            out.println();
+            final StringBuilder sb = new StringBuilder();
+            sb.append("# Netscape HTTP Cookie File\n");
+            sb.append("# This file was generated automatically.\n");
+            sb.append('\n');
+            dump(sb);
 
-            for (Cookie c : cookies) {
-                out.print(c.toNetscape());
-                out.println();
-            }
-        } catch (IOException ignored) {
-            log("ExtractorJar", String.format("Failed to write: %s", ignored));
+            out.println(sb);
+        } catch (final IOException err) {
+            log("ExtractorJar", String.format("Failed to write: %s", err));
         }
-    }
-
-    private void log(String tag, String msg) {
-        System.out.println(String.format("%s: %s", tag, msg));
     }
 
     @Nonnull
@@ -104,8 +120,8 @@ public class ExtractorJar {
                 }
             }
 
-        } catch (IOException ignored) {
-            log("ExtractorJar", String.format("Failed to load: %s", ignored));
+        } catch (final IOException err) {
+            log("ExtractorJar", String.format("Failed to load: %s", err));
         }
 
         return cookies;

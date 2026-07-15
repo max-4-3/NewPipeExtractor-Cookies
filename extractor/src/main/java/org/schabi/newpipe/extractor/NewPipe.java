@@ -86,6 +86,12 @@ public final class NewPipe {
         }
     }
 
+    public static void dumpCookies(final StringBuilder sb) {
+        if (downloader != null) {
+            downloader.dumpCookies(sb);
+        }
+    }
+
     public static Downloader getDownloader() {
         return downloader;
     }
