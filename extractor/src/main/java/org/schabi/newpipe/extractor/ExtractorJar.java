@@ -25,7 +25,18 @@ public class ExtractorJar {
     }
 
     public int size() {
-        return cookies.size();
+        synchronized (this.cookies) {
+            return cookies.size();
+        }
+    }
+
+    private void dump(final StringBuilder sb, final List<Cookie> cookies) {
+        if (sb != null && cookies != null) {
+            for (Cookie c : cookies) {
+                sb.append(c.toNetscape());
+                sb.append('\n');
+            }
+        }
     }
 
     /**
@@ -33,10 +44,12 @@ public class ExtractorJar {
      * @param sb StringBuilder to dump into
      */
     public void dump(final StringBuilder sb) {
-        for (Cookie c : cookies) {
-            sb.append(c.toNetscape());
-            sb.append('\n');
+        List<Cookie> cookies;
+        synchronized (this.cookies) {
+            cookies = new ArrayList<>(this.cookies);
         }
+
+        dump(sb, cookies);
     }
 
     /**
@@ -56,15 +69,15 @@ public class ExtractorJar {
                 }
             }
 
-            this.cookies.removeIf(c -> cookies.stream().anyMatch(
-                n -> n.getName().equals(c.getName()) && n.getDomain().equals(c.getDomain()))
-            );
-            this.cookies.addAll(cookies);
-            // final long t0 = System.nanoTime();
-            save(); /*this operation took 0.01s with 2k+ cookies on a old device*/
-            // log("ExtractorJar",
-            //    String.format("Took %.2fs to save",
-            //        (System.nanoTime() - t0) / 1_000_000_000.0));
+            synchronized (this.cookies) {
+                this.cookies.removeIf(c -> cookies.stream().anyMatch(
+                    n -> n.getName().equals(c.getName()) 
+                        && n.getDomain().equals(c.getDomain()))
+                );
+                this.cookies.addAll(cookies);
+            }
+
+            save(); /*this operation took 0.01s with 2k+ cookies (~500KiB) on a old device*/
         } catch (MalformedURLException e) {
             log("ExtractorJar", "Invalid `url` passed");
         }
@@ -77,13 +90,17 @@ public class ExtractorJar {
      */
     @Nullable
     public List<Cookie> loadForRequest(@Nonnull String url) {
-        final List<Cookie> cookies = new ArrayList<>();
+        List<Cookie> cookies;
+        synchronized (this.cookies) {
+            cookies = new ArrayList<>(this.cookies);
+        }
 
         try {
             final URL httpUrl = new URL(url);
-            cookies.addAll(this.cookies.stream().filter(c -> c.matches(httpUrl)).toList());
+            cookies.removeIf(c -> !c.matches(httpUrl));
         } catch (MalformedURLException e) {
             log("ExtractorJar", String.format("Unable to find cookies for '%s': %s", url, e));
+            cookies.clear();
         }
 
         return cookies;
@@ -94,12 +111,17 @@ public class ExtractorJar {
     }
 
     private void save() {
+        List<Cookie> cookies;
+        synchronized (this.cookies) {
+            cookies = new ArrayList<>(this.cookies);
+        }
+
         try (PrintWriter out = new PrintWriter(new BufferedWriter(new FileWriter(cookieFile)))) {
             final StringBuilder sb = new StringBuilder();
             sb.append("# Netscape HTTP Cookie File\n");
             sb.append("# This file was generated automatically.\n");
             sb.append('\n');
-            dump(sb);
+            dump(sb, cookies);
 
             out.println(sb);
         } catch (final IOException err) {
